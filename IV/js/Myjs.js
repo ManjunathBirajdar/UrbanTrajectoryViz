@@ -3,7 +3,7 @@
 var lat = 41.141376;
 var lng = -8.613999;
 var zoom = 14;
-
+google.charts.load('current', {'packages':['sankey']});	
 // add an OpenStreetMap tile layer
 var mbAttr = 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
     '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
@@ -92,6 +92,18 @@ var rt = cw(function(data,cb){
 });
 
 rt.data(cw.makeUrl("js/trips.json"));
+
+function clearMap() {
+    for (i in map._layers) {
+        if (map._layers[i]._path != undefined) {
+            try {
+                map.removeLayer(map._layers[i]);
+            } catch (e) {
+                console.log("problem with " + e + map._layers[i]);
+            }
+        }
+    }
+}
 //*****************************************************************************************************************************************	
 //*****************************************************************************************************************************************
 // Drawing Shapes (polyline, polygon, circle, rectangle, marker) Event:
@@ -99,6 +111,11 @@ rt.data(cw.makeUrl("js/trips.json"));
 //*****************************************************************************************************************************************	
 
 map.on('draw:created', function (e) {
+	
+	clearMap();
+	$("#rightside1").html("");
+	$("#scatterplot").html("");
+	$("#rightside").html("");
 	
 	var type = e.layerType,
 		layer = e.layer;
@@ -118,9 +135,9 @@ map.on('draw:created', function (e) {
 		  
 		});*/
 		DrawRS(result);
-		//VisualizeWordCloud(result);
 		sankeyCalculation(result);
-		
+		VisualizeWordCloud(result);
+		scatterplot(result);
 		});
 	}
 	
@@ -160,7 +177,7 @@ function sortByFrequency(arr) {
 function draw(words, bounds) {
 	// move and scale cloud bounds to canvas
 	// bounds = [{x0, y0}, {x1, y1}]
-	cWidth = 400;
+	cWidth = 1100;
 	cHeight = 300;
 	bWidth = bounds[1].x - bounds[0].x;
 	bHeight = bounds[1].y - bounds[0].y;
@@ -182,13 +199,13 @@ function draw(words, bounds) {
 		.attr("height", cHeight);
 	
 	wCloud = svg.append("g")
-		.attr("width", 400)
-                .attr("height", 300)
+		.attr("width", 1100)
+                .attr("height", 200)
                 .attr("class", "wordcloud")
                 .append("g")
                 // without the transform, words words would get cutoff to the left and top, they would
                 // appear outside of the SVG area
-				.attr("transform", "translate(160,100)")
+				.attr("transform", "translate(330,150)")
 				//.attr("transform", "translate(" + [bDeltaX, bDeltaY] + ") scale(" + scale + ")") // nah!
                 .selectAll("text")
                 .data(words)
@@ -199,7 +216,8 @@ function draw(words, bounds) {
 				//.duration(500)
                 .attr("transform", function(d) {
                     return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
-                });
+                })
+				;
 	
 	// TO DO: function to find min and max x,y of all words
 	// and use it as the group's bbox
@@ -233,8 +251,8 @@ function VisualizeWordCloud(trips){
 	console.log(words);	
 	
 	var fontName = "Impact",
-	cWidth = 400,
-	cHeight = 300,
+	cWidth = 700,
+	cHeight = 200,
 	svg,
 	wCloud,
 	bbox,
@@ -264,7 +282,7 @@ var fRatio = Math.min(cWidth, cHeight) / ctx.measureText(words[0].text).width,
 	.size([cWidth, cHeight])
 	.words(words)
 	.padding(1) // controls
-	.rotate(function() { return ~~(Math.random() * 2) * 90; })
+	.rotate(function() { return ~~(Math.random() * 2) * 30; })
 	//.text(function(d) {return d.text;})
 	.font(fontName)
 	.fontSize(function(d) { return fontScale(d.size) })
@@ -305,9 +323,7 @@ function sankeyCalculation(trips){
 	console.log(sourceArr);
     console.log("Destination:");
 	console.log(destArr);
-	google.charts.load('current', {'packages':['sankey']});
-    
-	
+
 	google.charts.setOnLoadCallback(drawChart(sourceArr,destArr));	
 }
 
@@ -316,7 +332,11 @@ function drawChart(sourceArr,destArr) {
         data.addColumn('string', 'From');
         data.addColumn('string', 'To');
 		data.addColumn('number', 'Weight');
-		for(var i=0;i<sourceArr.length;i++){
+		var length =15;
+		if(sourceArr.length<15){
+			length=sourceArr.length;
+		}
+		for(var i=0;i<length;i++){
 			data.addRow([sourceArr[i],destArr[i],2]);
 		}
         /*data.addRows([
@@ -330,16 +350,127 @@ function drawChart(sourceArr,destArr) {
 
         // Sets chart options.
         var options = {
-          width: 300,
+          width: 400,
         };
-//        var svg =  d3.select("#rightside")
-//		             .append("svg")
-//		             .attr("width","100%")
-//		             .attr("height","100%")
-//		             .attr("class", "graph-svg-component");
         // Instantiates and draws our chart, passing in some options.
         var chart = new google.visualization.Sankey(document.getElementById('rightside1'));
         chart.draw(data, options);
 }
 
- 
+function scatterplot(e) {
+
+var margin = {top: 20, right: 20, bottom: 30, left: 40},
+    width = 960 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+
+    var dataset = d3.nest()
+        .key(function (d) { return d.streetnames[0] }).sortKeys(d3.ascending)
+        .rollup(function(d) { return {"avduration": d3.mean(d, function (g) { return g.duration; }), "avspeed": d3.mean(d, function (g) { return g.avspeed; })}})
+        .entries(e);
+        console.log(JSON.stringify(dataset));
+
+    // setup x 
+    var xValue = function(d) { return d.value.avspeed;}, // data -> value
+        xScale = d3.scaleLinear().range([0, width]), // value -> display
+        xMap = function(d) { return xScale(xValue(d));}, // data -> display
+        xAxis = d3.axisBottom().scale(xScale);
+
+    // setup y
+    var yValue = function(d) { return d.value.avduration;}, // data -> value
+        yScale = d3.scaleLinear().range([height, 0]), // value -> display
+        yMap = function(d) { return yScale(yValue(d));}, // data -> display
+        yAxis = d3.axisLeft().scale(yScale);
+
+    // setup fill color
+    var cValue = function(d) { return d.key;},
+
+    color = d3.scaleOrdinal(d3.schemeCategory20);
+
+    // add the graph canvas to the body of the webpage
+    var svg = d3.select("#scatterplot").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    // add the tooltip area to the webpage
+    var tooltip = d3.select("body").append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 100);
+
+    // don't want dots overlapping axis, so add in buffer to data domain
+  xScale.domain([d3.min(dataset, xValue) - 1, d3.max(dataset, xValue) + 1]);
+  yScale.domain([d3.min(dataset, yValue) - 1, d3.max(dataset, yValue) + 1]);
+
+  // x-axis
+  svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis)
+    .append("text")
+      .attr("fill", "#000")
+      .attr("transform", "rotate(0)")
+      .attr("y", 17)
+      .attr("dy", "0.71em")
+      .attr("text-anchor", "start")
+      .text("Average Speed");
+
+  // y-axis
+  svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis)
+    .append("text")
+      .attr("fill", "#000")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 6)
+      .attr("dy", "0.71em")
+      .attr("text-anchor", "end")
+      .text("Average Duration");
+
+  // draw dots
+  svg.selectAll(".dot")
+      .data(dataset)
+    .enter().append("circle")
+      .attr("class", "dot")
+      .attr("r", 3.5)
+      .attr("cx", xMap)
+      .attr("cy", yMap)
+      .style("fill", function(d) { return color(cValue(d));}) 
+      .on("mouseover", function(d) {
+          tooltip.transition()
+               .duration(200)
+               .style("opacity", .9);
+          tooltip.html(d.key + "<br/> (Average Speed: " + xValue(d) 
+	        + ", Average Duration: " + yValue(d) + ")")
+               .style("left", (d3.event.pageX + 5) + "px")
+               .style("top", (d3.event.pageY - 28) + "px");
+      })
+      .on("mouseout", function(d) {
+          tooltip.transition()
+               .duration(500)
+               .style("opacity", 0);
+      });
+
+  // draw legend
+  var legend = svg.selectAll(".legend")
+      .data(color.domain())
+    .enter().append("g")
+      .attr("class", "legend")
+      .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+  // draw legend colored rectangles
+  legend.append("rect")
+      .attr("x", width - 18)
+      .attr("width", 18)
+      .attr("height", 18)
+      .style("fill", color);
+
+  // draw legend text
+  legend.append("text")
+      .attr("x", width - 24)
+      .attr("y", 9)
+      .attr("dy", ".35em")
+      .style("text-anchor", "end")
+      .text(function(d) { return d;})
+
+}
