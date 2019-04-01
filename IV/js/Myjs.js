@@ -3,7 +3,7 @@
 var lat = 41.141376;
 var lng = -8.613999;
 var zoom = 14;
-google.charts.load('current', {'packages':['sankey']});	
+google.charts.load('current', {'packages':['sankey']});
 // add an OpenStreetMap tile layer
 var mbAttr = 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
     '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
@@ -104,35 +104,35 @@ function clearMap() {
         }
     }
 }
-//*****************************************************************************************************************************************	
+//*****************************************************************************************************************************************
 //*****************************************************************************************************************************************
 // Drawing Shapes (polyline, polygon, circle, rectangle, marker) Event:
 // Select from draw box and start drawing on map.
-//*****************************************************************************************************************************************	
+//*****************************************************************************************************************************************
 
 map.on('draw:created', function (e) {
-	
+
 	clearMap();
 	$("#rightside1").html("");
 	$("#scatterplot").html("");
 	$("#rightside").html("");
-	
+
 	var type = e.layerType,
 		layer = e.layer;
-	
+
 	if (type === 'rectangle') {
 		console.log(layer.getLatLngs()); //Rectangle Corners points
 		var bounds=layer.getBounds();
 		rt.data([[bounds.getSouthWest().lng,bounds.getSouthWest().lat],[bounds.getNorthEast().lng,bounds.getNorthEast().lat]]).
 		then(function(d){var result = d.map(function(a) {return a.properties;});
 		console.log(result);		// Trip Info: avspeed, distance, duration, endtime, maxspeed, minspeed, starttime, streetnames, taxiid, tripid
-		
+
 		/*Object.entries(result).forEach(entry => {
 		  let key = entry[0];
 		  let value = entry[1];
 		  //window.alert();
 		  console.log(key,value.streetnames);
-		  
+
 		});*/
 		DrawRS(result);
 		sankeyCalculation(result);
@@ -140,8 +140,8 @@ map.on('draw:created', function (e) {
 		scatterplot(result);
 		});
 	}
-	
-	drawnItems.addLayer(layer);			//Add your Selection to Map  
+
+	drawnItems.addLayer(layer);			//Add your Selection to Map
 });
 //*****************************************************************************************************************************************
 // DrawRS Function:
@@ -151,19 +151,19 @@ map.on('draw:created', function (e) {
 //*****************************************************************************************************************************************
 function DrawRS(trips) {
 	for (var j=0; j<trips.length; j++) {  // Check Number of Segments and go through all segments
-		var TPT = new Array();			  
-		TPT = TArr[trips[j].tripid].split(',');  		 // Find each segment in TArr Dictionary. 
+		var TPT = new Array();
+		TPT = TArr[trips[j].tripid].split(',');  		 // Find each segment in TArr Dictionary.
 		var polyline = new L.Polyline([]).addTo(drawnItems);
         polyline.setStyle({
             color: 'red',                      // polyline color
 			weight: 1,                         // polyline weight
 			opacity: 0.5,                      // polyline opacity
-			smoothFactor: 1.0  
+			smoothFactor: 1.0
         });
 		for(var y = 0; y < TPT.length-1; y=y+2){    // Parse latlng for each segment
 			polyline.addLatLng([parseFloat(TPT[y+1]), parseFloat(TPT[y])]);
 		}
-	}		
+	}
 }
 
 function sortByFrequency(arr) {
@@ -190,14 +190,14 @@ function draw(words, bounds) {
 	//scale = 1 / Math.max(scaleX, scaleY);
 
 	bScale = bounds ? Math.min( cWidth / bWidth, cHeight / bHeight) : 1;
-	
+
 	// the library's bounds seem not to correspond to reality?
 	// try using .getBBox() instead?
-	
+
 	svg = d3.select("#rightside").append("svg")
 		.attr("width", cWidth)
 		.attr("height", cHeight);
-	
+
 	wCloud = svg.append("g")
 		.attr("width", 1100)
                 .attr("height", 200)
@@ -205,7 +205,7 @@ function draw(words, bounds) {
                 .append("g")
                 // without the transform, words words would get cutoff to the left and top, they would
                 // appear outside of the SVG area
-				.attr("transform", "translate(330,150)")
+				.attr("transform", "translate(350,150)")
 				//.attr("transform", "translate(" + [bDeltaX, bDeltaY] + ") scale(" + scale + ")") // nah!
                 .selectAll("text")
                 .data(words)
@@ -218,38 +218,38 @@ function draw(words, bounds) {
                     return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
                 })
 				;
-	
+
 	// TO DO: function to find min and max x,y of all words
 	// and use it as the group's bbox
 	// then do the transformation
 	bbox = wCloud.node(0).getBBox();
 	//ctm = wCloud.node().getCTM();
 	console.log(
-		"bbox (x: " + bbox.x + 
-		", y: " + bbox.y + 
-		", w: " + bbox.width + 
-		", h: " + bbox.height + 
+		"bbox (x: " + bbox.x +
+		", y: " + bbox.y +
+		", w: " + bbox.width +
+		", h: " + bbox.height +
 		")"
 	);
-	
+
 };
 
 function VisualizeWordCloud(trips){
 	console.log("hi");
 	d3.layout.cloud().clear;
-	//var map1 = new Map(); 
+	//var map1 = new Map();
 	var arr = []
 	for (var j=0; j<trips.length; j++) {
 		for (var k=0; k<15; k++) {
 			arr.push(trips[j].streetnames[k]);
 		}
 	}
-	
+
 	var words = sortByFrequency(arr).map(function(d,i) {
         	return {text: d, size: -i};
         });
-	console.log(words);	
-	
+	console.log(words);
+
 	var fontName = "Impact",
 	cWidth = 700,
 	cHeight = 200,
@@ -271,7 +271,7 @@ var cTemp = document.createElement('canvas'),
 var fRatio = Math.min(cWidth, cHeight) / ctx.measureText(words[0].text).width,
 	fontScale = d3.scale.linear()
 		.domain([
-			d3.min(words, function(d) { return d.size; }), 
+			d3.min(words, function(d) { return d.size; }),
 			d3.max(words, function(d) { return d.size; })
 		])
 		//.range([20,120]),
@@ -291,7 +291,7 @@ var fRatio = Math.min(cWidth, cHeight) / ctx.measureText(words[0].text).width,
 }
 
 function sankeyCalculation(trips){
-	
+
 	var sourceArr = [];
 	var uniqueSrc = [];
 	var uniqueDest = [];
@@ -300,22 +300,22 @@ function sankeyCalculation(trips){
 	var i=0,j=0;
 	while(i<trips.length){
 		start = trips[i].streetnames[0];
-		end = trips[i].streetnames[trips[i].streetnames.length-1]; 			
-		if(start!=end && start!=undefined && end!=undefined){  
+		end = trips[i].streetnames[trips[i].streetnames.length-1];
+		if(start!=end && start!=undefined && end!=undefined){
 		    sourceArr[j]= start;
-            destArr[j]= end;	
+            destArr[j]= end;
 			j++;
 		}
-		i++;	
+		i++;
 	}
-		
-		
+
+
 	console.log("sdfgh");
 	$.each(sourceArr, function(i, el){
     if($.inArray(el, uniqueSrc) === -1) uniqueSrc.push(el);
 	});
 
-     
+
 	 $.each(destArr, function(i, el){
     if($.inArray(el, uniqueDest) === -1) uniqueDest.push(el);
 	});
@@ -324,7 +324,7 @@ function sankeyCalculation(trips){
     console.log("Destination:");
 	console.log(destArr);
 
-	google.charts.setOnLoadCallback(drawChart(sourceArr,destArr));	
+	google.charts.setOnLoadCallback(drawChart(sourceArr,destArr));
 }
 
 function drawChart(sourceArr,destArr) {
@@ -350,7 +350,7 @@ function drawChart(sourceArr,destArr) {
 
         // Sets chart options.
         var options = {
-          width: 400,
+          width: 400, height: 500
         };
         // Instantiates and draws our chart, passing in some options.
         var chart = new google.visualization.Sankey(document.getElementById('rightside1'));
@@ -360,7 +360,7 @@ function drawChart(sourceArr,destArr) {
 function scatterplot(e) {
 
 var margin = {top: 20, right: 20, bottom: 30, left: 40},
-    width = 960 - margin.left - margin.right,
+    width = 1200 - margin.left - margin.right,
     height = 500 - margin.top - margin.bottom;
 
     var dataset = d3.nest()
@@ -369,7 +369,7 @@ var margin = {top: 20, right: 20, bottom: 30, left: 40},
         .entries(e);
         console.log(JSON.stringify(dataset));
 
-    // setup x 
+    // setup x
     var xValue = function(d) { return d.value.avspeed;}, // data -> value
         xScale = d3.scaleLinear().range([0, width]), // value -> display
         xMap = function(d) { return xScale(xValue(d));}, // data -> display
@@ -435,12 +435,12 @@ var margin = {top: 20, right: 20, bottom: 30, left: 40},
       .attr("r", 3.5)
       .attr("cx", xMap)
       .attr("cy", yMap)
-      .style("fill", function(d) { return color(cValue(d));}) 
+      .style("fill", function(d) { return color(cValue(d));})
       .on("mouseover", function(d) {
           tooltip.transition()
                .duration(200)
                .style("opacity", .9);
-          tooltip.html(d.key + "<br/> (Average Speed: " + xValue(d) 
+          tooltip.html(d.key + "<br/> (Average Speed: " + xValue(d)
 	        + ", Average Duration: " + yValue(d) + ")")
                .style("left", (d3.event.pageX + 5) + "px")
                .style("top", (d3.event.pageY - 28) + "px");
