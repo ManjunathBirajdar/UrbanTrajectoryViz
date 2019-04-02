@@ -4,6 +4,7 @@ var lat = 41.141376;
 var lng = -8.613999;
 var zoom = 14;
 google.charts.load('current', {'packages':['sankey']});
+google.charts.load('current', {'packages':['corechart']}); // Loads the scatter matrix from Google (thanks Google)
 // add an OpenStreetMap tile layer
 var mbAttr = 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
     '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
@@ -93,13 +94,18 @@ var rt = cw(function(data,cb){
 
 rt.data(cw.makeUrl("js/trips.json"));
 
+//*****************************************************************************************************************************************
+//*****************************************************************************************************************************************
+// Function to clear the previosly selected rectangular area
+//*****************************************************************************************************************************************
+
 function clearMap() {
     for (i in map._layers) {
         if (map._layers[i]._path != undefined) {
             try {
                 map.removeLayer(map._layers[i]);
             } catch (e) {
-                console.log("problem with " + e + map._layers[i]);
+                console.log("There is problem: " + e + map._layers[i]);
             }
         }
     }
@@ -116,7 +122,7 @@ map.on('draw:created', function (e) {
 	$("#rightside1").html("");
 	$("#scatterplot").html("");
 	$("#rightside").html("");
-
+  $("#scatter").html("");
 	var type = e.layerType,
 		layer = e.layer;
 
@@ -127,17 +133,11 @@ map.on('draw:created', function (e) {
 		then(function(d){var result = d.map(function(a) {return a.properties;});
 		console.log(result);		// Trip Info: avspeed, distance, duration, endtime, maxspeed, minspeed, starttime, streetnames, taxiid, tripid
 
-		/*Object.entries(result).forEach(entry => {
-		  let key = entry[0];
-		  let value = entry[1];
-		  //window.alert();
-		  console.log(key,value.streetnames);
-
-		});*/
 		DrawRS(result);
 		sankeyCalculation(result);
 		VisualizeWordCloud(result);
 		scatterplot(result);
+    drawScatterMatrix(result);
 		});
 	}
 
@@ -234,8 +234,11 @@ function draw(words, bounds) {
 
 };
 
+//*****************************************************************************************************************************************
+// Cloud Word Visualization Function:
+// Input is a list of road trips.
+//*****************************************************************************************************************************************
 function VisualizeWordCloud(trips){
-	console.log("hi");
 	d3.layout.cloud().clear;
 	//var map1 = new Map();
 	var arr = []
@@ -274,7 +277,6 @@ var fRatio = Math.min(cWidth, cHeight) / ctx.measureText(words[0].text).width,
 			d3.min(words, function(d) { return d.size; }),
 			d3.max(words, function(d) { return d.size; })
 		])
-		//.range([20,120]),
 		.range([10,35]), // tbc
 	fill = d3.scale.category20();
 
@@ -283,13 +285,16 @@ var fRatio = Math.min(cWidth, cHeight) / ctx.measureText(words[0].text).width,
 	.words(words)
 	.padding(1) // controls
 	.rotate(function() { return ~~(Math.random() * 2) * 30; })
-	//.text(function(d) {return d.text;})
 	.font(fontName)
 	.fontSize(function(d) { return fontScale(d.size) })
 	.on("end", draw)
 	.start();
 }
 
+//*****************************************************************************************************************************************
+// Sankey Diagram Visualization Function:
+// Input is a list of road trips.
+//*****************************************************************************************************************************************
 function sankeyCalculation(trips){
 
 	var sourceArr = [];
@@ -309,8 +314,6 @@ function sankeyCalculation(trips){
 		i++;
 	}
 
-
-	console.log("sdfgh");
 	$.each(sourceArr, function(i, el){
     if($.inArray(el, uniqueSrc) === -1) uniqueSrc.push(el);
 	});
@@ -327,6 +330,10 @@ function sankeyCalculation(trips){
 	google.charts.setOnLoadCallback(drawChart(sourceArr,destArr));
 }
 
+//*****************************************************************************************************************************************
+// Visualize sankey diagram:
+// Input is a list of start and end points of trips.
+//*****************************************************************************************************************************************
 function drawChart(sourceArr,destArr) {
         var data = new google.visualization.DataTable();
         data.addColumn('string', 'From');
@@ -339,15 +346,6 @@ function drawChart(sourceArr,destArr) {
 		for(var i=0;i<length;i++){
 			data.addRow([sourceArr[i],destArr[i],2]);
 		}
-        /*data.addRows([
-          [ 'A', 'X', 5 ],
-          [ 'A', 'Y', 7 ],
-          [ 'A', 'Z', 6 ],
-          [ 'B', 'X', 2 ],
-          [ 'B', 'Y', 9 ],
-          [ 'B', 'Z', 4 ]
-        ]);*/
-
         // Sets chart options.
         var options = {
           width: 400, height: 500
@@ -357,7 +355,12 @@ function drawChart(sourceArr,destArr) {
         chart.draw(data, options);
 }
 
-function scatterplot(e) {
+//*****************************************************************************************************************************************
+// Scatterplot Visualization Function:
+// Input is a list of road trips.
+//*****************************************************************************************************************************************
+
+function scatterplot(result) {
 
 var margin = {top: 20, right: 20, bottom: 30, left: 40},
     width = 1200 - margin.left - margin.right,
@@ -366,7 +369,7 @@ var margin = {top: 20, right: 20, bottom: 30, left: 40},
     var dataset = d3.nest()
         .key(function (d) { return d.streetnames[0] }).sortKeys(d3.ascending)
         .rollup(function(d) { return {"avduration": d3.mean(d, function (g) { return g.duration; }), "avspeed": d3.mean(d, function (g) { return g.avspeed; })}})
-        .entries(e);
+        .entries(result);
         console.log(JSON.stringify(dataset));
 
     // setup x
@@ -473,4 +476,89 @@ var margin = {top: 20, right: 20, bottom: 30, left: 40},
       .style("text-anchor", "end")
       .text(function(d) { return d;})
 
+}
+//*****************************************************************************************************************************************
+// Scatter Matrix Visualization Function:
+// Input is a list of road trips.
+//*****************************************************************************************************************************************
+
+function drawScatterMatrix(trips){
+
+	speed = [];
+	distance =[];
+	duration=[];
+	for (var i =0;i<trips.length;i++)
+	{
+	      speed[i]=trips[i].avspeed;
+		  distance[i]=trips[i].distance;
+		  duration[i]=trips[i].duration;
+	}
+
+	google.charts.load('current', {'packages':['corechart']}); // Loads the scatter matrix from Google (thanks Google)
+    google.charts.setOnLoadCallback(drawScatterMatrixCallBack(speed,distance,duration)); // Starts callback function to draw scatter matrix
+}
+
+function drawScatterMatrixCallBack(maxSpeed,distance,duration){
+	// Draws the header and border styles
+	document.getElementById('scatter').innerHTML=  "<div id=\"scatter1\" style=\"width:40%; float:left\"></div>"+
+													"<div id=\"scatter2\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter3\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter4\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter5\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter6\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter7\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter8\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter9\" style=\"width:40%; float:left\"></div>" +
+													"<p style=\"color:white; margin-bottom: 10px;\"></p>";
+	//document.getElementById("scatter").style.border ="thick solid";
+	//document.getElementById("scatter").style.borderRadius = "20px";
+
+
+	// Draw row 1 scatter plots
+	drawScatterPlot('Distance', distance, 'Distance', distance, 1);
+	drawScatterPlot('Distance', distance, 'Duration', duration, 2);
+	drawScatterPlot('Distance', distance, 'Avg Speed', maxSpeed, 3);
+	// Draw row 2 scatter plots
+	drawScatterPlot('Duration', duration, 'Distance', distance, 4);
+	drawScatterPlot('Duration', duration, 'Duration', duration, 5);
+	drawScatterPlot('Duration', duration, 'Avg Speed', maxSpeed, 6);
+	// Draw row 3 scatter plots
+	drawScatterPlot('Avg Speed', maxSpeed, 'Distance', distance, 7);
+	drawScatterPlot('Avg Speed', maxSpeed, 'Duration', duration, 8);
+	drawScatterPlot('Avg Speed', maxSpeed, 'Avg Speed', maxSpeed, 9);
+}
+
+/*
+// Helper function to fill the
+function fillScatterArray(results, arr1, arr2) {
+	for (let i = 0; i < arr1.length; i++) {
+		results.push([arr1[i], arr2[i]]);
+	}
+}
+*/
+
+// Draws scatter plot
+function drawScatterPlot(title1, param_arr1, title2, param_arr2, chartNum) {
+	// Copies arrays
+	arr1 = param_arr1.slice();
+	arr2 = param_arr2.slice();
+
+	// Adds title to 2d array
+	let rawData = [[title1, title2]];
+	// Adds each line of data to 2d array
+	for (let i = 0; i < arr2.length; i++) {
+		rawData.push([arr1[i], arr2[i]]);
+	}
+	// Formats data for Google visualization
+	var data = google.visualization.arrayToDataTable(rawData);
+	// Sets chart options
+	var options = {
+		title: title1 + ' vs. ' + title2,
+		hAxis: {title: title1, minValue: 0, maxValue: arr1.sort((a, b) => b - a)[0]},
+		vAxis: {title: title2, minValue: 0, maxValue: arr2.sort((a, b) => b - a)[0]},
+		legend: 'none'
+	};
+	// Creates and draws the scatter plot
+	var chart = new google.visualization.ScatterChart(document.getElementById('scatter'+chartNum));
+	chart.draw(data, options);
 }
