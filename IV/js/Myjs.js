@@ -3,7 +3,8 @@
 var lat = 41.141376;
 var lng = -8.613999;
 var zoom = 14;
-google.charts.load('current', {'packages':['sankey']});	
+google.charts.load('current', {'packages':['sankey']});
+google.charts.load('current', {'packages':['corechart']}); // Loads the scatter matrix from Google (thanks Google)
 // add an OpenStreetMap tile layer
 var mbAttr = 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
     '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
@@ -93,55 +94,54 @@ var rt = cw(function(data,cb){
 
 rt.data(cw.makeUrl("js/trips.json"));
 
+//*****************************************************************************************************************************************
+//*****************************************************************************************************************************************
+// Function to clear the previosly selected rectangular area
+//*****************************************************************************************************************************************
+
 function clearMap() {
     for (i in map._layers) {
         if (map._layers[i]._path != undefined) {
             try {
                 map.removeLayer(map._layers[i]);
             } catch (e) {
-                console.log("problem with " + e + map._layers[i]);
+                console.log("There is problem: " + e + map._layers[i]);
             }
         }
     }
 }
-//*****************************************************************************************************************************************	
+//*****************************************************************************************************************************************
 //*****************************************************************************************************************************************
 // Drawing Shapes (polyline, polygon, circle, rectangle, marker) Event:
 // Select from draw box and start drawing on map.
-//*****************************************************************************************************************************************	
+//*****************************************************************************************************************************************
 
 map.on('draw:created', function (e) {
-	
+
 	clearMap();
 	$("#rightside1").html("");
 	$("#scatterplot").html("");
 	$("#rightside").html("");
-	
+  $("#scatter").html("");
 	var type = e.layerType,
 		layer = e.layer;
-	
+
 	if (type === 'rectangle') {
 		console.log(layer.getLatLngs()); //Rectangle Corners points
 		var bounds=layer.getBounds();
 		rt.data([[bounds.getSouthWest().lng,bounds.getSouthWest().lat],[bounds.getNorthEast().lng,bounds.getNorthEast().lat]]).
 		then(function(d){var result = d.map(function(a) {return a.properties;});
 		console.log(result);		// Trip Info: avspeed, distance, duration, endtime, maxspeed, minspeed, starttime, streetnames, taxiid, tripid
-		
-		/*Object.entries(result).forEach(entry => {
-		  let key = entry[0];
-		  let value = entry[1];
-		  //window.alert();
-		  console.log(key,value.streetnames);
-		  
-		});*/
+
 		DrawRS(result);
 		sankeyCalculation(result);
 		VisualizeWordCloud(result);
 		scatterplot(result);
+    drawScatterMatrix(result);
 		});
 	}
-	
-	drawnItems.addLayer(layer);			//Add your Selection to Map  
+
+	drawnItems.addLayer(layer);			//Add your Selection to Map
 });
 //*****************************************************************************************************************************************
 // DrawRS Function:
@@ -151,19 +151,19 @@ map.on('draw:created', function (e) {
 //*****************************************************************************************************************************************
 function DrawRS(trips) {
 	for (var j=0; j<trips.length; j++) {  // Check Number of Segments and go through all segments
-		var TPT = new Array();			  
-		TPT = TArr[trips[j].tripid].split(',');  		 // Find each segment in TArr Dictionary. 
+		var TPT = new Array();
+		TPT = TArr[trips[j].tripid].split(',');  		 // Find each segment in TArr Dictionary.
 		var polyline = new L.Polyline([]).addTo(drawnItems);
         polyline.setStyle({
             color: 'red',                      // polyline color
 			weight: 1,                         // polyline weight
 			opacity: 0.5,                      // polyline opacity
-			smoothFactor: 1.0  
+			smoothFactor: 1.0
         });
 		for(var y = 0; y < TPT.length-1; y=y+2){    // Parse latlng for each segment
 			polyline.addLatLng([parseFloat(TPT[y+1]), parseFloat(TPT[y])]);
 		}
-	}		
+	}
 }
 
 function sortByFrequency(arr) {
@@ -190,14 +190,14 @@ function draw(words, bounds) {
 	//scale = 1 / Math.max(scaleX, scaleY);
 
 	bScale = bounds ? Math.min( cWidth / bWidth, cHeight / bHeight) : 1;
-	
+
 	// the library's bounds seem not to correspond to reality?
 	// try using .getBBox() instead?
-	
+
 	svg = d3.select("#rightside").append("svg")
 		.attr("width", cWidth)
 		.attr("height", cHeight);
-	
+
 	wCloud = svg.append("g")
 		.attr("width", 1100)
                 .attr("height", 200)
@@ -205,7 +205,7 @@ function draw(words, bounds) {
                 .append("g")
                 // without the transform, words words would get cutoff to the left and top, they would
                 // appear outside of the SVG area
-				.attr("transform", "translate(330,150)")
+				.attr("transform", "translate(350,150)")
 				//.attr("transform", "translate(" + [bDeltaX, bDeltaY] + ") scale(" + scale + ")") // nah!
                 .selectAll("text")
                 .data(words)
@@ -218,38 +218,41 @@ function draw(words, bounds) {
                     return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
                 })
 				;
-	
+
 	// TO DO: function to find min and max x,y of all words
 	// and use it as the group's bbox
 	// then do the transformation
 	bbox = wCloud.node(0).getBBox();
 	//ctm = wCloud.node().getCTM();
 	console.log(
-		"bbox (x: " + bbox.x + 
-		", y: " + bbox.y + 
-		", w: " + bbox.width + 
-		", h: " + bbox.height + 
+		"bbox (x: " + bbox.x +
+		", y: " + bbox.y +
+		", w: " + bbox.width +
+		", h: " + bbox.height +
 		")"
 	);
-	
+
 };
 
+//*****************************************************************************************************************************************
+// Cloud Word Visualization Function:
+// Input is a list of road trips.
+//*****************************************************************************************************************************************
 function VisualizeWordCloud(trips){
-	console.log("hi");
 	d3.layout.cloud().clear;
-	//var map1 = new Map(); 
+	//var map1 = new Map();
 	var arr = []
 	for (var j=0; j<trips.length; j++) {
 		for (var k=0; k<15; k++) {
 			arr.push(trips[j].streetnames[k]);
 		}
 	}
-	
+
 	var words = sortByFrequency(arr).map(function(d,i) {
         	return {text: d, size: -i};
         });
-	console.log(words);	
-	
+	console.log(words);
+
 	var fontName = "Impact",
 	cWidth = 700,
 	cHeight = 200,
@@ -271,10 +274,9 @@ var cTemp = document.createElement('canvas'),
 var fRatio = Math.min(cWidth, cHeight) / ctx.measureText(words[0].text).width,
 	fontScale = d3.scale.linear()
 		.domain([
-			d3.min(words, function(d) { return d.size; }), 
+			d3.min(words, function(d) { return d.size; }),
 			d3.max(words, function(d) { return d.size; })
 		])
-		//.range([20,120]),
 		.range([10,35]), // tbc
 	fill = d3.scale.category20();
 
@@ -283,15 +285,18 @@ var fRatio = Math.min(cWidth, cHeight) / ctx.measureText(words[0].text).width,
 	.words(words)
 	.padding(1) // controls
 	.rotate(function() { return ~~(Math.random() * 2) * 30; })
-	//.text(function(d) {return d.text;})
 	.font(fontName)
 	.fontSize(function(d) { return fontScale(d.size) })
 	.on("end", draw)
 	.start();
 }
 
+//*****************************************************************************************************************************************
+// Sankey Diagram Visualization Function:
+// Input is a list of road trips.
+//*****************************************************************************************************************************************
 function sankeyCalculation(trips){
-	
+
 	var sourceArr = [];
 	var uniqueSrc = [];
 	var uniqueDest = [];
@@ -300,22 +305,20 @@ function sankeyCalculation(trips){
 	var i=0,j=0;
 	while(i<trips.length){
 		start = trips[i].streetnames[0];
-		end = trips[i].streetnames[trips[i].streetnames.length-1]; 			
-		if(start!=end && start!=undefined && end!=undefined){  
+		end = trips[i].streetnames[trips[i].streetnames.length-1];
+		if(start!=end && start!=undefined && end!=undefined){
 		    sourceArr[j]= start;
-            destArr[j]= end;	
+            destArr[j]= end;
 			j++;
 		}
-		i++;	
+		i++;
 	}
-		
-		
-	console.log("sdfgh");
+
 	$.each(sourceArr, function(i, el){
     if($.inArray(el, uniqueSrc) === -1) uniqueSrc.push(el);
 	});
 
-     
+
 	 $.each(destArr, function(i, el){
     if($.inArray(el, uniqueDest) === -1) uniqueDest.push(el);
 	});
@@ -324,9 +327,13 @@ function sankeyCalculation(trips){
     console.log("Destination:");
 	console.log(destArr);
 
-	google.charts.setOnLoadCallback(drawChart(sourceArr,destArr));	
+	google.charts.setOnLoadCallback(drawChart(sourceArr,destArr));
 }
 
+//*****************************************************************************************************************************************
+// Visualize sankey diagram:
+// Input is a list of start and end points of trips.
+//*****************************************************************************************************************************************
 function drawChart(sourceArr,destArr) {
         var data = new google.visualization.DataTable();
         data.addColumn('string', 'From');
@@ -339,37 +346,33 @@ function drawChart(sourceArr,destArr) {
 		for(var i=0;i<length;i++){
 			data.addRow([sourceArr[i],destArr[i],2]);
 		}
-        /*data.addRows([
-          [ 'A', 'X', 5 ],
-          [ 'A', 'Y', 7 ],
-          [ 'A', 'Z', 6 ],
-          [ 'B', 'X', 2 ],
-          [ 'B', 'Y', 9 ],
-          [ 'B', 'Z', 4 ]
-        ]);*/
-
         // Sets chart options.
         var options = {
-          width: 400,
+          width: 400, height: 500
         };
         // Instantiates and draws our chart, passing in some options.
         var chart = new google.visualization.Sankey(document.getElementById('rightside1'));
         chart.draw(data, options);
 }
 
-function scatterplot(e) {
+//*****************************************************************************************************************************************
+// Scatterplot Visualization Function:
+// Input is a list of road trips.
+//*****************************************************************************************************************************************
+
+function scatterplot(result) {
 
 var margin = {top: 20, right: 20, bottom: 30, left: 40},
-    width = 960 - margin.left - margin.right,
+    width = 1200 - margin.left - margin.right,
     height = 500 - margin.top - margin.bottom;
 
     var dataset = d3.nest()
         .key(function (d) { return d.streetnames[0] }).sortKeys(d3.ascending)
         .rollup(function(d) { return {"avduration": d3.mean(d, function (g) { return g.duration; }), "avspeed": d3.mean(d, function (g) { return g.avspeed; })}})
-        .entries(e);
+        .entries(result);
         console.log(JSON.stringify(dataset));
 
-    // setup x 
+    // setup x
     var xValue = function(d) { return d.value.avspeed;}, // data -> value
         xScale = d3.scaleLinear().range([0, width]), // value -> display
         xMap = function(d) { return xScale(xValue(d));}, // data -> display
@@ -435,12 +438,12 @@ var margin = {top: 20, right: 20, bottom: 30, left: 40},
       .attr("r", 3.5)
       .attr("cx", xMap)
       .attr("cy", yMap)
-      .style("fill", function(d) { return color(cValue(d));}) 
+      .style("fill", function(d) { return color(cValue(d));})
       .on("mouseover", function(d) {
           tooltip.transition()
                .duration(200)
                .style("opacity", .9);
-          tooltip.html(d.key + "<br/> (Average Speed: " + xValue(d) 
+          tooltip.html(d.key + "<br/> (Average Speed: " + xValue(d)
 	        + ", Average Duration: " + yValue(d) + ")")
                .style("left", (d3.event.pageX + 5) + "px")
                .style("top", (d3.event.pageY - 28) + "px");
@@ -473,4 +476,89 @@ var margin = {top: 20, right: 20, bottom: 30, left: 40},
       .style("text-anchor", "end")
       .text(function(d) { return d;})
 
+}
+//*****************************************************************************************************************************************
+// Scatter Matrix Visualization Function:
+// Input is a list of road trips.
+//*****************************************************************************************************************************************
+
+function drawScatterMatrix(trips){
+
+	speed = [];
+	distance =[];
+	duration=[];
+	for (var i =0;i<trips.length;i++)
+	{
+	      speed[i]=trips[i].avspeed;
+		  distance[i]=trips[i].distance;
+		  duration[i]=trips[i].duration;
+	}
+
+	google.charts.load('current', {'packages':['corechart']}); // Loads the scatter matrix from Google (thanks Google)
+    google.charts.setOnLoadCallback(drawScatterMatrixCallBack(speed,distance,duration)); // Starts callback function to draw scatter matrix
+}
+
+function drawScatterMatrixCallBack(maxSpeed,distance,duration){
+	// Draws the header and border styles
+	document.getElementById('scatter').innerHTML=  "<div id=\"scatter1\" style=\"width:40%; float:left\"></div>"+
+													"<div id=\"scatter2\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter3\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter4\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter5\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter6\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter7\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter8\" style=\"width:40%; float:left\"></div>" +
+													"<div id=\"scatter9\" style=\"width:40%; float:left\"></div>" +
+													"<p style=\"color:white; margin-bottom: 10px;\"></p>";
+	//document.getElementById("scatter").style.border ="thick solid";
+	//document.getElementById("scatter").style.borderRadius = "20px";
+
+
+	// Draw row 1 scatter plots
+	drawScatterPlot('Distance', distance, 'Distance', distance, 1);
+	drawScatterPlot('Distance', distance, 'Duration', duration, 2);
+	drawScatterPlot('Distance', distance, 'Avg Speed', maxSpeed, 3);
+	// Draw row 2 scatter plots
+	drawScatterPlot('Duration', duration, 'Distance', distance, 4);
+	drawScatterPlot('Duration', duration, 'Duration', duration, 5);
+	drawScatterPlot('Duration', duration, 'Avg Speed', maxSpeed, 6);
+	// Draw row 3 scatter plots
+	drawScatterPlot('Avg Speed', maxSpeed, 'Distance', distance, 7);
+	drawScatterPlot('Avg Speed', maxSpeed, 'Duration', duration, 8);
+	drawScatterPlot('Avg Speed', maxSpeed, 'Avg Speed', maxSpeed, 9);
+}
+
+/*
+// Helper function to fill the
+function fillScatterArray(results, arr1, arr2) {
+	for (let i = 0; i < arr1.length; i++) {
+		results.push([arr1[i], arr2[i]]);
+	}
+}
+*/
+
+// Draws scatter plot
+function drawScatterPlot(title1, param_arr1, title2, param_arr2, chartNum) {
+	// Copies arrays
+	arr1 = param_arr1.slice();
+	arr2 = param_arr2.slice();
+
+	// Adds title to 2d array
+	let rawData = [[title1, title2]];
+	// Adds each line of data to 2d array
+	for (let i = 0; i < arr2.length; i++) {
+		rawData.push([arr1[i], arr2[i]]);
+	}
+	// Formats data for Google visualization
+	var data = google.visualization.arrayToDataTable(rawData);
+	// Sets chart options
+	var options = {
+		title: title1 + ' vs. ' + title2,
+		hAxis: {title: title1, minValue: 0, maxValue: arr1.sort((a, b) => b - a)[0]},
+		vAxis: {title: title2, minValue: 0, maxValue: arr2.sort((a, b) => b - a)[0]},
+		legend: 'none'
+	};
+	// Creates and draws the scatter plot
+	var chart = new google.visualization.ScatterChart(document.getElementById('scatter'+chartNum));
+	chart.draw(data, options);
 }

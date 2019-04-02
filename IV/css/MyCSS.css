@@ -2,8 +2,8 @@ body,
 html {
 	height: 100%;
 	padding-top: 25px;
-	width: 100%; 
-	margin: 0; 
+	width: 100%;
+	margin: 0;
 }
 
 #map {
@@ -11,14 +11,14 @@ html {
 	height: 100%;
 	float: left;
 	z-index: 1;
-	position: relative; 
-	
+	position: relative;
+
 }
 
 #rightside1 {
 	width: 40%;
 	height: 33.33%;
-	position: relative; 
+	position: relative;
 	background-color: snow;
 	left: 60%;
 	padding-left:20px;
@@ -29,7 +29,24 @@ html {
 	border: 2px solid black;
 }
 
+#scatterplot svg g .legend{
+	margin-left: 200px;
+}
+
+.zoom {
+  background-color: white;
+  transition: transform .2s;
+  width: 200px;
+  height: 200px;
+}
+
+.zoom:hover {
+  -ms-transform: scale(1.5); /* IE 9 */
+  -webkit-transform: scale(1.5); /* Safari 3-8 */
+  transform: scale(1.5);
+}
+
 .cloud svg {
 	border: 1px solid grey;
-	
+
 }
